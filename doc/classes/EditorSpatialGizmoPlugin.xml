@@ -7,7 +7,7 @@
 		EditorSpatialGizmoPlugin allows you to define a new type of Gizmo. There are two main ways to do so: extending [EditorSpatialGizmoPlugin] for the simpler gizmos, or creating a new [EditorSpatialGizmo] type. See the tutorial in the documentation for more info.
 	</description>
 	<tutorials>
-		<link>https://docs.godotengine.org/en/latest/tutorials/plugins/editor/spatial_gizmos.html</link>
+		<link>https://docs.godotengine.org/en/3.2/tutorials/plugins/editor/spatial_gizmos.html</link>
 	</tutorials>
 	<methods>
 		<method name="add_material">
@@ -122,7 +122,7 @@
 			</return>
 			<argument index="0" name="name" type="String">
 			</argument>
-			<argument index="1" name="gizmo" type="EditorSpatialGizmo">
+			<argument index="1" name="gizmo" type="EditorSpatialGizmo" default="null">
 			</argument>
 			<description>
 				Gets material from the internal list of materials. If an [EditorSpatialGizmo] is provided, it will try to get the corresponding variant (selected and/or editable).
