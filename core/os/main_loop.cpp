@@ -30,14 +30,9 @@
 
 #include "main_loop.h"
 
-#include "core/script_language.h"
+#include "core/object/script_language.h"
 
 void MainLoop::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("init"), &MainLoop::init);
-	ClassDB::bind_method(D_METHOD("iteration", "delta"), &MainLoop::iteration);
-	ClassDB::bind_method(D_METHOD("idle", "delta"), &MainLoop::idle);
-	ClassDB::bind_method(D_METHOD("finish"), &MainLoop::finish);
-
 	BIND_VMETHOD(MethodInfo("_initialize"));
 	BIND_VMETHOD(MethodInfo(Variant::BOOL, "_iteration", PropertyInfo(Variant::FLOAT, "delta")));
 	BIND_VMETHOD(MethodInfo(Variant::BOOL, "_idle", PropertyInfo(Variant::FLOAT, "delta")));
@@ -52,6 +47,7 @@ void MainLoop::_bind_methods() {
 	BIND_CONSTANT(NOTIFICATION_APPLICATION_PAUSED);
 	BIND_CONSTANT(NOTIFICATION_APPLICATION_FOCUS_IN);
 	BIND_CONSTANT(NOTIFICATION_APPLICATION_FOCUS_OUT);
+	BIND_CONSTANT(NOTIFICATION_TEXT_SERVER_CHANGED);
 
 	ADD_SIGNAL(MethodInfo("on_request_permissions_result", PropertyInfo(Variant::STRING, "permission"), PropertyInfo(Variant::BOOL, "granted")));
 };

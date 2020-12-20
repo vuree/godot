@@ -31,7 +31,7 @@
 #ifndef STYLE_BOX_H
 #define STYLE_BOX_H
 
-#include "core/resource.h"
+#include "core/io/resource.h"
 #include "scene/resources/texture.h"
 #include "servers/rendering_server.h"
 
@@ -90,7 +90,6 @@ private:
 	float margin[4];
 	Rect2 region_rect;
 	Ref<Texture2D> texture;
-	Ref<Texture2D> normal_map;
 	bool draw_center;
 	Color modulate;
 	AxisStretchMode axis_h;
@@ -114,9 +113,6 @@ public:
 
 	void set_texture(Ref<Texture2D> p_texture);
 	Ref<Texture2D> get_texture() const;
-
-	void set_normal_map(Ref<Texture2D> p_normal_map);
-	Ref<Texture2D> get_normal_map() const;
 
 	void set_draw_center(bool p_enabled);
 	bool is_draw_center_enabled() const;
@@ -188,7 +184,6 @@ public:
 	//CORNER
 	void set_corner_radius_all(int radius);
 	void set_corner_radius_individual(const int radius_top_left, const int radius_top_right, const int radius_botton_right, const int radius_bottom_left);
-	int get_corner_radius_min() const;
 
 	void set_corner_radius(Corner p_corner, const int radius);
 	int get_corner_radius(Corner p_corner) const;

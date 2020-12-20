@@ -29,7 +29,6 @@
 /*************************************************************************/
 
 package org.godotengine.godot;
-
 import org.godotengine.godot.input.GodotGestureHandler;
 import org.godotengine.godot.input.GodotInputHandler;
 import org.godotengine.godot.utils.GLUtils;
@@ -127,7 +126,7 @@ public class GodotGLRenderView extends GLSurfaceView implements GodotRenderView 
 	public boolean onTouchEvent(MotionEvent event) {
 		super.onTouchEvent(event);
 		this.detector.onTouchEvent(event);
-		return godot.gotTouchEvent(event);
+		return inputHandler.onTouchEvent(event);
 	}
 
 	@Override
@@ -143,6 +142,11 @@ public class GodotGLRenderView extends GLSurfaceView implements GodotRenderView 
 	@Override
 	public boolean onGenericMotionEvent(MotionEvent event) {
 		return inputHandler.onGenericMotionEvent(event) || super.onGenericMotionEvent(event);
+	}
+
+	@Override
+	public boolean onCapturedPointerEvent(MotionEvent event) {
+		return inputHandler.onGenericMotionEvent(event);
 	}
 
 	private void init(XRMode xrMode, boolean translucent, int depth, int stencil) {

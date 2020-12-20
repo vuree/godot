@@ -32,8 +32,8 @@
 
 #include "core/core_string_names.h"
 #include "core/io/resource_loader.h"
-#include "core/message_queue.h"
-#include "core/print_string.h"
+#include "core/object/message_queue.h"
+#include "core/string/print_string.h"
 #include "instance_placeholder.h"
 #include "scene/debugger/scene_debugger.h"
 #include "scene/resources/packed_scene.h"
@@ -2873,6 +2873,7 @@ void Node::_bind_methods() {
 	BIND_CONSTANT(NOTIFICATION_APPLICATION_PAUSED);
 	BIND_CONSTANT(NOTIFICATION_APPLICATION_FOCUS_IN);
 	BIND_CONSTANT(NOTIFICATION_APPLICATION_FOCUS_OUT);
+	BIND_CONSTANT(NOTIFICATION_TEXT_SERVER_CHANGED);
 
 	BIND_ENUM_CONSTANT(PAUSE_MODE_INHERIT);
 	BIND_ENUM_CONSTANT(PAUSE_MODE_STOP);
@@ -2889,7 +2890,6 @@ void Node::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("tree_exiting"));
 	ADD_SIGNAL(MethodInfo("tree_exited"));
 
-	ADD_GROUP("Pause", "pause_");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "pause_mode", PROPERTY_HINT_ENUM, "Inherit,Stop,Process"), "set_pause_mode", "get_pause_mode");
 
 	ADD_PROPERTY(PropertyInfo(Variant::STRING_NAME, "name", PROPERTY_HINT_NONE, "", 0), "set_name", "get_name");

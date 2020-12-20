@@ -33,8 +33,8 @@
 
 #include "core/math/transform.h"
 #include "core/math/vector3.h"
-#include "core/object.h"
-#include "core/vset.h"
+#include "core/object/class_db.h"
+#include "core/templates/vset.h"
 #include "shape_owner_bullet.h"
 
 #include <LinearMath/btTransform.h>

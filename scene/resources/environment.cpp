@@ -30,7 +30,8 @@
 
 #include "environment.h"
 
-#include "core/project_settings.h"
+#include "core/config/project_settings.h"
+#include "core/core_string_names.h"
 #include "servers/rendering_server.h"
 #include "texture.h"
 
@@ -44,6 +45,9 @@ void Environment::set_background(BGMode p_bg) {
 	bg_mode = p_bg;
 	RS::get_singleton()->environment_set_background(environment, RS::EnvironmentBG(p_bg));
 	_change_notify();
+	if (bg_mode != BG_SKY) {
+		set_fog_aerial_perspective(0.0);
+	}
 }
 
 Environment::BGMode Environment::get_background() const {
@@ -578,22 +582,28 @@ bool Environment::is_glow_enabled() const {
 	return glow_enabled;
 }
 
-void Environment::set_glow_level_enabled(int p_level, bool p_enabled) {
+void Environment::set_glow_level(int p_level, float p_intensity) {
 	ERR_FAIL_INDEX(p_level, RS::MAX_GLOW_LEVELS);
 
-	if (p_enabled) {
-		glow_levels |= (1 << p_level);
-	} else {
-		glow_levels &= ~(1 << p_level);
-	}
+	glow_levels.write[p_level] = p_intensity;
 
 	_update_glow();
 }
 
-bool Environment::is_glow_level_enabled(int p_level) const {
-	ERR_FAIL_INDEX_V(p_level, RS::MAX_GLOW_LEVELS, false);
+float Environment::get_glow_level(int p_level) const {
+	ERR_FAIL_INDEX_V(p_level, RS::MAX_GLOW_LEVELS, 0.0);
 
-	return glow_levels & (1 << p_level);
+	return glow_levels[p_level];
+}
+
+void Environment::set_glow_normalized(bool p_normalized) {
+	glow_normalize_levels = p_normalized;
+
+	_update_glow();
+}
+
+bool Environment::is_glow_normalized() const {
+	return glow_normalize_levels;
 }
 
 void Environment::set_glow_intensity(float p_intensity) {
@@ -670,10 +680,24 @@ float Environment::get_glow_hdr_luminance_cap() const {
 }
 
 void Environment::_update_glow() {
+	Vector<float> normalized_levels;
+	if (glow_normalize_levels) {
+		normalized_levels.resize(7);
+		float size = 0.0;
+		for (int i = 0; i < glow_levels.size(); i++) {
+			size += glow_levels[i];
+		}
+		for (int i = 0; i < glow_levels.size(); i++) {
+			normalized_levels.write[i] = glow_levels[i] / size;
+		}
+	} else {
+		normalized_levels = glow_levels;
+	}
+
 	RS::get_singleton()->environment_set_glow(
 			environment,
 			glow_enabled,
-			glow_levels,
+			normalized_levels,
 			glow_intensity,
 			glow_strength,
 			glow_mix,
@@ -739,6 +763,14 @@ float Environment::get_fog_height_density() const {
 	return fog_height_density;
 }
 
+void Environment::set_fog_aerial_perspective(float p_aerial_perspective) {
+	fog_aerial_perspective = p_aerial_perspective;
+	_update_fog();
+}
+float Environment::get_fog_aerial_perspective() const {
+	return fog_aerial_perspective;
+}
+
 void Environment::_update_fog() {
 	RS::get_singleton()->environment_set_fog(
 			environment,
@@ -748,7 +780,8 @@ void Environment::_update_fog() {
 			fog_sun_scatter,
 			fog_density,
 			fog_height,
-			fog_height_density);
+			fog_height_density,
+			fog_aerial_perspective);
 }
 
 // Volumetric Fog
@@ -859,23 +892,38 @@ float Environment::get_adjustment_saturation() const {
 	return adjustment_saturation;
 }
 
-void Environment::set_adjustment_color_correction(const Ref<Texture2D> &p_ramp) {
-	adjustment_color_correction = p_ramp;
+void Environment::set_adjustment_color_correction(Ref<Texture> p_color_correction) {
+	adjustment_color_correction = p_color_correction;
+	Ref<GradientTexture> grad_tex = p_color_correction;
+	if (grad_tex.is_valid()) {
+		if (!grad_tex->is_connected(CoreStringNames::get_singleton()->changed, callable_mp(this, &Environment::_update_adjustment))) {
+			grad_tex->connect(CoreStringNames::get_singleton()->changed, callable_mp(this, &Environment::_update_adjustment));
+		}
+	}
+	Ref<Texture2D> adjustment_texture_2d = adjustment_color_correction;
+	if (adjustment_texture_2d.is_valid()) {
+		use_1d_color_correction = true;
+	} else {
+		use_1d_color_correction = false;
+	}
 	_update_adjustment();
 }
 
-Ref<Texture2D> Environment::get_adjustment_color_correction() const {
+Ref<Texture> Environment::get_adjustment_color_correction() const {
 	return adjustment_color_correction;
 }
 
 void Environment::_update_adjustment() {
+	RID color_correction = adjustment_color_correction.is_valid() ? adjustment_color_correction->get_rid() : RID();
+
 	RS::get_singleton()->environment_set_adjustment(
 			environment,
 			adjustment_enabled,
 			adjustment_brightness,
 			adjustment_contrast,
 			adjustment_saturation,
-			adjustment_color_correction.is_valid() ? adjustment_color_correction->get_rid() : RID());
+			use_1d_color_correction,
+			color_correction);
 }
 
 // Private methods, constructor and destructor
@@ -883,6 +931,12 @@ void Environment::_update_adjustment() {
 void Environment::_validate_property(PropertyInfo &property) const {
 	if (property.name == "sky" || property.name == "sky_custom_fov" || property.name == "sky_rotation" || property.name == "ambient_light/sky_contribution") {
 		if (bg_mode != BG_SKY && ambient_source != AMBIENT_SOURCE_SKY && reflection_source != REFLECTION_SOURCE_SKY) {
+			property.usage = PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL;
+		}
+	}
+
+	if (property.name == "fog_aerial_perspective") {
+		if (bg_mode != BG_SKY) {
 			property.usage = PROPERTY_USAGE_NOEDITOR | PROPERTY_USAGE_INTERNAL;
 		}
 	}
@@ -1162,8 +1216,10 @@ void Environment::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_glow_enabled", "enabled"), &Environment::set_glow_enabled);
 	ClassDB::bind_method(D_METHOD("is_glow_enabled"), &Environment::is_glow_enabled);
-	ClassDB::bind_method(D_METHOD("set_glow_level_enabled", "idx", "enabled"), &Environment::set_glow_level_enabled);
-	ClassDB::bind_method(D_METHOD("is_glow_level_enabled", "idx"), &Environment::is_glow_level_enabled);
+	ClassDB::bind_method(D_METHOD("set_glow_level", "idx", "intensity"), &Environment::set_glow_level);
+	ClassDB::bind_method(D_METHOD("get_glow_level", "idx"), &Environment::get_glow_level);
+	ClassDB::bind_method(D_METHOD("set_glow_normalized", "normalize"), &Environment::set_glow_normalized);
+	ClassDB::bind_method(D_METHOD("is_glow_normalized"), &Environment::is_glow_normalized);
 	ClassDB::bind_method(D_METHOD("set_glow_intensity", "intensity"), &Environment::set_glow_intensity);
 	ClassDB::bind_method(D_METHOD("get_glow_intensity"), &Environment::get_glow_intensity);
 	ClassDB::bind_method(D_METHOD("set_glow_strength", "strength"), &Environment::set_glow_strength);
@@ -1183,13 +1239,14 @@ void Environment::_bind_methods() {
 
 	ADD_GROUP("Glow", "glow_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "glow_enabled"), "set_glow_enabled", "is_glow_enabled");
-	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "glow_levels/1"), "set_glow_level_enabled", "is_glow_level_enabled", 0);
-	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "glow_levels/2"), "set_glow_level_enabled", "is_glow_level_enabled", 1);
-	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "glow_levels/3"), "set_glow_level_enabled", "is_glow_level_enabled", 2);
-	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "glow_levels/4"), "set_glow_level_enabled", "is_glow_level_enabled", 3);
-	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "glow_levels/5"), "set_glow_level_enabled", "is_glow_level_enabled", 4);
-	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "glow_levels/6"), "set_glow_level_enabled", "is_glow_level_enabled", 5);
-	ADD_PROPERTYI(PropertyInfo(Variant::BOOL, "glow_levels/7"), "set_glow_level_enabled", "is_glow_level_enabled", 6);
+	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "glow_levels/1", PROPERTY_HINT_RANGE, "0,16,0.01,or_greater"), "set_glow_level", "get_glow_level", 0);
+	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "glow_levels/2", PROPERTY_HINT_RANGE, "0,16,0.01,or_greater"), "set_glow_level", "get_glow_level", 1);
+	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "glow_levels/3", PROPERTY_HINT_RANGE, "0,16,0.01,or_greater"), "set_glow_level", "get_glow_level", 2);
+	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "glow_levels/4", PROPERTY_HINT_RANGE, "0,16,0.01,or_greater"), "set_glow_level", "get_glow_level", 3);
+	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "glow_levels/5", PROPERTY_HINT_RANGE, "0,16,0.01,or_greater"), "set_glow_level", "get_glow_level", 4);
+	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "glow_levels/6", PROPERTY_HINT_RANGE, "0,16,0.01,or_greater"), "set_glow_level", "get_glow_level", 5);
+	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "glow_levels/7", PROPERTY_HINT_RANGE, "0,16,0.01,or_greater"), "set_glow_level", "get_glow_level", 6);
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "glow_normalized"), "set_glow_normalized", "is_glow_normalized");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "glow_intensity", PROPERTY_HINT_RANGE, "0.0,8.0,0.01"), "set_glow_intensity", "get_glow_intensity");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "glow_strength", PROPERTY_HINT_RANGE, "0.0,2.0,0.01"), "set_glow_strength", "get_glow_strength");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "glow_mix", PROPERTY_HINT_RANGE, "0.0,1.0,0.001"), "set_glow_mix", "get_glow_mix");
@@ -1219,6 +1276,9 @@ void Environment::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_fog_height_density", "height_density"), &Environment::set_fog_height_density);
 	ClassDB::bind_method(D_METHOD("get_fog_height_density"), &Environment::get_fog_height_density);
 
+	ClassDB::bind_method(D_METHOD("set_fog_aerial_perspective", "aerial_perspective"), &Environment::set_fog_aerial_perspective);
+	ClassDB::bind_method(D_METHOD("get_fog_aerial_perspective"), &Environment::get_fog_aerial_perspective);
+
 	ADD_GROUP("Fog", "fog_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "fog_enabled"), "set_fog_enabled", "is_fog_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "fog_light_color", PROPERTY_HINT_COLOR_NO_ALPHA), "set_fog_light_color", "get_fog_light_color");
@@ -1226,6 +1286,7 @@ void Environment::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fog_sun_scatter", PROPERTY_HINT_RANGE, "0,1,0.01,or_greater"), "set_fog_sun_scatter", "get_fog_sun_scatter");
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fog_density", PROPERTY_HINT_RANGE, "0,16,0.0001"), "set_fog_density", "get_fog_density");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fog_aerial_perspective", PROPERTY_HINT_RANGE, "0,1,0.001"), "set_fog_aerial_perspective", "get_fog_aerial_perspective");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fog_height", PROPERTY_HINT_RANGE, "-1024,1024,0.01,or_lesser,or_greater"), "set_fog_height", "get_fog_height");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fog_height_density", PROPERTY_HINT_RANGE, "0,128,0.001,or_greater"), "set_fog_height_density", "get_fog_height_density");
 
@@ -1274,7 +1335,7 @@ void Environment::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "adjustment_brightness", PROPERTY_HINT_RANGE, "0.01,8,0.01"), "set_adjustment_brightness", "get_adjustment_brightness");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "adjustment_contrast", PROPERTY_HINT_RANGE, "0.01,8,0.01"), "set_adjustment_contrast", "get_adjustment_contrast");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "adjustment_saturation", PROPERTY_HINT_RANGE, "0.01,8,0.01"), "set_adjustment_saturation", "get_adjustment_saturation");
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "adjustment_color_correction", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D"), "set_adjustment_color_correction", "get_adjustment_color_correction");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "adjustment_color_correction", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D,Texture3D"), "set_adjustment_color_correction", "get_adjustment_color_correction");
 
 	// Constants
 
@@ -1329,6 +1390,16 @@ Environment::Environment() {
 	environment = RS::get_singleton()->environment_create();
 
 	set_camera_feed_id(bg_camera_feed_id);
+
+	glow_levels.resize(7);
+	glow_levels.write[0] = 0.0;
+	glow_levels.write[1] = 0.0;
+	glow_levels.write[2] = 1.0;
+	glow_levels.write[3] = 0.0;
+	glow_levels.write[4] = 1.0;
+	glow_levels.write[5] = 0.0;
+	glow_levels.write[6] = 0.0;
+
 	_update_ambient_light();
 	_update_tonemap();
 	_update_ssr();

@@ -36,7 +36,7 @@
 #include "editor_properties_array_dict.h"
 #include "editor_scale.h"
 #include "scene/main/window.h"
-#include "scene/resources/dynamic_font.h"
+#include "scene/resources/font.h"
 
 ///////////////////// NULL /////////////////////////
 
@@ -68,9 +68,9 @@ void EditorPropertyText::_text_changed(const String &p_string) {
 	}
 
 	if (string_name) {
-		emit_changed(get_edited_property(), StringName(p_string), "", true);
+		emit_changed(get_edited_property(), StringName(p_string), "", false);
 	} else {
-		emit_changed(get_edited_property(), p_string, "", true);
+		emit_changed(get_edited_property(), p_string, "", false);
 	}
 }
 
@@ -146,7 +146,8 @@ void EditorPropertyMultilineText::_notification(int p_what) {
 			Ref<Texture2D> df = get_theme_icon("DistractionFree", "EditorIcons");
 			open_big_text->set_icon(df);
 			Ref<Font> font = get_theme_font("font", "Label");
-			text->set_custom_minimum_size(Vector2(0, font->get_height() * 6));
+			int font_size = get_theme_font_size("font_size", "Label");
+			text->set_custom_minimum_size(Vector2(0, font->get_height(font_size) * 6));
 
 		} break;
 	}
@@ -290,6 +291,7 @@ EditorPropertyPath::EditorPropertyPath() {
 	HBoxContainer *path_hb = memnew(HBoxContainer);
 	add_child(path_hb);
 	path = memnew(LineEdit);
+	path->set_structured_text_bidi_override(Control::STRUCTURED_TEXT_FILE);
 	path_hb->add_child(path);
 	path->connect("text_entered", callable_mp(this, &EditorPropertyPath::_path_selected));
 	path->connect("focus_exited", callable_mp(this, &EditorPropertyPath::_path_focus_exited));
@@ -587,7 +589,8 @@ public:
 
 	virtual Size2 get_minimum_size() const override {
 		Ref<Font> font = get_theme_font("font", "Label");
-		return Vector2(0, font->get_height() * 2);
+		int font_size = get_theme_font_size("font_size", "Label");
+		return Vector2(0, font->get_height(font_size) * 2);
 	}
 
 	virtual String get_tooltip(const Point2 &p_pos) const override {
@@ -614,7 +617,7 @@ public:
 
 		const Ref<InputEventMouseButton> mb = p_ev;
 
-		if (mb.is_valid() && mb->get_button_index() == BUTTON_LEFT && mb->is_pressed()) {
+		if (mb.is_valid() && mb->get_button_index() == BUTTON_LEFT && mb->is_pressed() && hovered_index >= 0) {
 			// Toggle the flag.
 			// We base our choice on the hovered flag, so that it always matches the hovered flag.
 			if (value & (1 << hovered_index)) {
@@ -985,6 +988,7 @@ void EditorPropertyEasing::_draw_easing() {
 	const float exp = get_edited_object()->get(get_edited_property());
 
 	const Ref<Font> f = get_theme_font("font", "Label");
+	int font_size = get_theme_font_size("font_size", "Label");
 	const Color font_color = get_theme_color("font_color", "Label");
 	Color line_color;
 	if (dragging) {
@@ -1022,7 +1026,7 @@ void EditorPropertyEasing::_draw_easing() {
 	} else {
 		decimals = 1;
 	}
-	f->draw(ci, Point2(10, 10 + f->get_ascent()), rtos(exp).pad_decimals(decimals), font_color);
+	f->draw_string(ci, Point2(10, 10 + f->get_ascent(font_size)), TS->format_number(rtos(exp).pad_decimals(decimals)), HALIGN_LEFT, -1, font_size, font_color);
 }
 
 void EditorPropertyEasing::update_property() {
@@ -1039,7 +1043,7 @@ void EditorPropertyEasing::_set_preset(int p_preset) {
 void EditorPropertyEasing::_setup_spin() {
 	setting = true;
 	spin->setup_and_show();
-	spin->get_line_edit()->set_text(rtos(get_edited_object()->get(get_edited_property())));
+	spin->get_line_edit()->set_text(TS->format_number(rtos(get_edited_object()->get(get_edited_property()))));
 	setting = false;
 	spin->show();
 }
@@ -1088,7 +1092,7 @@ void EditorPropertyEasing::_notification(int p_what) {
 				preset->add_icon_item(get_theme_icon("CurveInOut", "EditorIcons"), "In-Out", EASING_IN_OUT);
 				preset->add_icon_item(get_theme_icon("CurveOutIn", "EditorIcons"), "Out-In", EASING_OUT_IN);
 			}
-			easing_draw->set_custom_minimum_size(Size2(0, get_theme_font("font", "Label")->get_height() * 2));
+			easing_draw->set_custom_minimum_size(Size2(0, get_theme_font("font", "Label")->get_height(get_theme_font_size("font_size", "Label")) * 2));
 		} break;
 	}
 }
@@ -1172,7 +1176,7 @@ void EditorPropertyVector2::setup(double p_min, double p_max, double p_step, boo
 }
 
 EditorPropertyVector2::EditorPropertyVector2(bool p_force_wide) {
-	bool horizontal = EDITOR_GET("interface/inspector/horizontal_vector2_editing");
+	bool horizontal = p_force_wide || bool(EDITOR_GET("interface/inspector/horizontal_vector2_editing"));
 
 	BoxContainer *bc;
 
@@ -1258,7 +1262,7 @@ void EditorPropertyRect2::setup(double p_min, double p_max, double p_step, bool 
 }
 
 EditorPropertyRect2::EditorPropertyRect2(bool p_force_wide) {
-	bool horizontal = !p_force_wide && bool(EDITOR_GET("interface/inspector/horizontal_vector_types_editing"));
+	bool horizontal = p_force_wide || bool(EDITOR_GET("interface/inspector/horizontal_vector_types_editing"));
 
 	BoxContainer *bc;
 
@@ -1353,7 +1357,7 @@ void EditorPropertyVector3::setup(double p_min, double p_max, double p_step, boo
 }
 
 EditorPropertyVector3::EditorPropertyVector3(bool p_force_wide) {
-	bool horizontal = EDITOR_GET("interface/inspector/horizontal_vector_types_editing");
+	bool horizontal = p_force_wide || bool(EDITOR_GET("interface/inspector/horizontal_vector_types_editing"));
 
 	BoxContainer *bc;
 
@@ -1435,7 +1439,7 @@ void EditorPropertyVector2i::setup(int p_min, int p_max, bool p_no_slider) {
 }
 
 EditorPropertyVector2i::EditorPropertyVector2i(bool p_force_wide) {
-	bool horizontal = EDITOR_GET("interface/inspector/horizontal_vector2_editing");
+	bool horizontal = p_force_wide || bool(EDITOR_GET("interface/inspector/horizontal_vector2_editing"));
 
 	BoxContainer *bc;
 
@@ -1521,7 +1525,7 @@ void EditorPropertyRect2i::setup(int p_min, int p_max, bool p_no_slider) {
 }
 
 EditorPropertyRect2i::EditorPropertyRect2i(bool p_force_wide) {
-	bool horizontal = EDITOR_GET("interface/inspector/horizontal_vector_types_editing");
+	bool horizontal = p_force_wide || bool(EDITOR_GET("interface/inspector/horizontal_vector_types_editing"));
 
 	BoxContainer *bc;
 
@@ -1605,7 +1609,7 @@ void EditorPropertyVector3i::setup(int p_min, int p_max, bool p_no_slider) {
 }
 
 EditorPropertyVector3i::EditorPropertyVector3i(bool p_force_wide) {
-	bool horizontal = EDITOR_GET("interface/inspector/horizontal_vector_types_editing");
+	bool horizontal = p_force_wide || bool(EDITOR_GET("interface/inspector/horizontal_vector_types_editing"));
 
 	BoxContainer *bc;
 	if (p_force_wide) {
@@ -1690,7 +1694,7 @@ void EditorPropertyPlane::setup(double p_min, double p_max, double p_step, bool 
 }
 
 EditorPropertyPlane::EditorPropertyPlane(bool p_force_wide) {
-	bool horizontal = EDITOR_GET("interface/inspector/horizontal_vector_types_editing");
+	bool horizontal = p_force_wide || bool(EDITOR_GET("interface/inspector/horizontal_vector_types_editing"));
 
 	BoxContainer *bc;
 
@@ -3016,7 +3020,7 @@ bool EditorPropertyResource::_is_drop_valid(const Dictionary &p_drag_data) const
 		} else if (at == "ShaderMaterial") {
 			allowed_types.append("Shader");
 		} else if (at == "Font") {
-			allowed_types.append("DynamicFontData");
+			allowed_types.append("FontData");
 		}
 	}
 
@@ -3115,9 +3119,9 @@ void EditorPropertyResource::drop_data_fw(const Point2 &p_point, const Variant &
 					break;
 				}
 
-				if (at == "Font" && ClassDB::is_parent_class(res->get_class(), "DynamicFontData")) {
-					Ref<DynamicFont> font = memnew(DynamicFont);
-					font->set_font_data(res);
+				if (at == "Font" && ClassDB::is_parent_class(res->get_class(), "FontData")) {
+					Ref<Font> font = memnew(Font);
+					font->add_data(res);
 					res = font;
 					break;
 				}
@@ -3645,7 +3649,7 @@ bool EditorInspectorDefaultPlugin::parse_property(Object *p_object, Variant::Typ
 			add_property_editor(p_path, editor);
 
 		} break;
-		case Variant::_RID: {
+		case Variant::RID: {
 			EditorPropertyRID *editor = memnew(EditorPropertyRID);
 			add_property_editor(p_path, editor);
 		} break;

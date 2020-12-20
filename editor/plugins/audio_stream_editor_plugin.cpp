@@ -30,8 +30,8 @@
 
 #include "audio_stream_editor_plugin.h"
 
+#include "core/config/project_settings.h"
 #include "core/io/resource_loader.h"
-#include "core/project_settings.h"
 #include "editor/audio_stream_preview.h"
 #include "editor/editor_scale.h"
 #include "editor/editor_settings.h"
@@ -44,8 +44,8 @@ void AudioStreamEditor::_notification(int p_what) {
 	if (p_what == NOTIFICATION_THEME_CHANGED || p_what == NOTIFICATION_ENTER_TREE) {
 		_play_button->set_icon(get_theme_icon("MainPlay", "EditorIcons"));
 		_stop_button->set_icon(get_theme_icon("Stop", "EditorIcons"));
-		_preview->set_frame_color(get_theme_color("dark_color_2", "Editor"));
-		set_frame_color(get_theme_color("dark_color_1", "Editor"));
+		_preview->set_color(get_theme_color("dark_color_2", "Editor"));
+		set_color(get_theme_color("dark_color_1", "Editor"));
 
 		_indicator->update();
 		_preview->update();
@@ -236,11 +236,13 @@ AudioStreamEditor::AudioStreamEditor() {
 	_current_label->set_align(Label::ALIGN_RIGHT);
 	_current_label->set_h_size_flags(SIZE_EXPAND_FILL);
 	_current_label->add_theme_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_theme_font("status_source", "EditorFonts"));
+	_current_label->add_theme_font_size_override("font_size", EditorNode::get_singleton()->get_gui_base()->get_theme_font_size("status_source_size", "EditorFonts"));
 	_current_label->set_modulate(Color(1, 1, 1, 0.5));
 	hbox->add_child(_current_label);
 
 	_duration_label = memnew(Label);
 	_duration_label->add_theme_font_override("font", EditorNode::get_singleton()->get_gui_base()->get_theme_font("status_source", "EditorFonts"));
+	_duration_label->add_theme_font_size_override("font_size", EditorNode::get_singleton()->get_gui_base()->get_theme_font_size("status_source_size", "EditorFonts"));
 	hbox->add_child(_duration_label);
 }
 
